@@ -1,16 +1,18 @@
-cmake_minimum_required (VERSION 3.5)
-project (sudoku-SAT VERSION 0.1 LANGUAGES CXX)
+cmake_minimum_required (VERSION 3.14)
+project (KenKen-SAT VERSION 0.1 LANGUAGES CXX)
+set(CMAKE_CXX_STANDARD 20)
 
-set(CMAKE_CXX_EXTENSIONS OFF)
+include(FetchContent)
+FetchContent_Declare(
+        minisat
+        GIT_REPOSITORY https://github.com/master-keying/minisat.git
+)
+FetchContent_MakeAvailable(minisat)
 
-find_package(MiniSat 2.2 REQUIRED)
-
-add_executable(sudoku-cli
+add_executable(kenken-cli
     main.cpp
-    solver.cpp
+    solver.cpp cage.cpp
     # Headers for IDEs
     solver.hpp
 )
-target_link_libraries(sudoku-cli MiniSat::libminisat)
-
-set_property(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR} PROPERTY VS_STARTUP_PROJECT sudoku-cli)
+target_link_libraries(kenken-cli MiniSat::libminisat)

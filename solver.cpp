@@ -1,37 +1,18 @@
 #include "solver.hpp"
 
+#include <algorithm>    // next_permutation
 #include <iostream>
+#include <cassert>
 
+int board_size;
 
 namespace {
 
-const int rows = 9;
-const int columns = 9;
-const int values = 9;
-
 Minisat::Var toVar(int row, int column, int value) {
-    assert(row >= 0 && row < rows    && "Attempt to get var for nonexistant row");
-    assert(column >= 0 && column < columns && "Attempt to get var for nonexistant column");
-    assert(value >= 0 && value < values   && "Attempt to get var for nonexistant value");
-    return row * columns * values + column * values + value;
-}
-
-bool is_valid(board const& b) {
-    if (b.size() != rows) {
-        return false;
-    }
-    for (int row = 0; row < rows; ++row) {
-        if (b[row].size() != columns) {
-            return false;
-        }
-        for (int col = 0; col < columns; ++col) {
-            auto value = b[row][col];
-            if (value < 0 || value > 9) {
-                return false;
-            }
-        }
-    }
-    return true;
+    assert(row >= 0 && row < board_size && "Attempt to get var for nonexistant row");
+    assert(column >= 0 && column < board_size && "Attempt to get var for nonexistant column");
+    assert(value >= 0 && value < board_size && "Attempt to get var for nonexistant value");
+    return row * board_size * board_size + column * board_size + value;
 }
 
 void log_var(Minisat::Lit lit) {
@@ -60,9 +41,9 @@ void Solver::init_variables() {
     if (m_write_dimacs) {
         std::clog << "c (row, column, value) = variable\n";
     }
-    for (int r = 0; r < rows; ++r) {
-        for (int c = 0; c < columns; ++c) {
-            for (int v = 0; v < values; ++v) {
+    for (int r = 0; r < board_size; ++r) {
+        for (int c = 0; c < board_size; ++c) {
+            for (int v = 0; v < board_size; ++v) {
                 auto var = solver.newVar();
                 if (m_write_dimacs) {
                     std::clog << "c (" << r << ", " << c << ", " << v + 1 << ") = " << var + 1 << '\n';
@@ -92,10 +73,10 @@ void Solver::exactly_one_true(Minisat::vec<Minisat::Lit> const& literals) {
 
 
 void Solver::one_square_one_value() {
-    for (int row = 0; row < rows; ++row) {
-        for (int column = 0; column < columns; ++column) {
+    for (int row = 0; row < board_size; ++row) {
+        for (int column = 0; column < board_size; ++column) {
             Minisat::vec<Minisat::Lit> literals;
-            for (int value = 0; value < values; ++value) {
+            for (int value = 0; value < board_size; ++value) {
                 literals.push(Minisat::mkLit(toVar(row, column, value)));
             }
             exactly_one_true(literals);
@@ -105,37 +86,23 @@ void Solver::one_square_one_value() {
 
 void Solver::non_duplicated_values() {
     // In each row, for each value, forbid two column sharing that value
-    for (int row = 0; row < rows; ++row) {
-        for (int value = 0; value < values; ++value) {
+    for (int row = 0; row < board_size; ++row) {
+        for (int value = 0; value < board_size; ++value) {
             Minisat::vec<Minisat::Lit> literals;
-            for (int column = 0; column < columns; ++column) {
+            for (int column = 0; column < board_size; ++column) {
                 literals.push(Minisat::mkLit(toVar(row, column, value)));
             }
             exactly_one_true(literals);
         }
     }
-    // In each column, for each value, forbid two rows sharing that value
-    for (int column = 0; column < columns; ++column) {
-        for (int value = 0; value < values; ++value) {
+    // In each column, for each value, forbid two board_size sharing that value
+    for (int column = 0; column < board_size; ++column) {
+        for (int value = 0; value < board_size; ++value) {
             Minisat::vec<Minisat::Lit> literals;
-            for (int row = 0; row < rows; ++row) {
+            for (int row = 0; row < board_size; ++row) {
                 literals.push(Minisat::mkLit(toVar(row, column, value)));
             }
             exactly_one_true(literals);
-        }
-    }
-    // Now forbid sharing in the 3x3 boxes
-    for (int r = 0; r < 9; r += 3) {
-        for (int c = 0; c < 9; c += 3) {
-            for (int value = 0; value < values; ++value) {
-                Minisat::vec<Minisat::Lit> literals;
-                for (int rr = 0; rr < 3; ++rr) {
-                    for (int cc = 0; cc < 3; ++cc) {
-                        literals.push(Minisat::mkLit(toVar(r + rr, c + cc, value)));
-                    }
-                }
-                exactly_one_true(literals);
-            }
         }
     }
 }
@@ -148,30 +115,16 @@ Solver::Solver(bool write_dimacs):
     non_duplicated_values();
 }
 
-bool Solver::apply_board(board const& b) {
-    assert(is_valid(b) && "Provided board is not valid!");
-    bool ret = true;
-    for (int row = 0; row < rows; ++row) {
-        for (int col = 0; col < columns; ++col) {
-            auto value = b[row][col];
-            if (value != 0) {
-                ret &= solver.addClause(Minisat::mkLit(toVar(row, col, value - 1)));
-            }
-        }
-    }
-    return ret;
-}
-
 bool Solver::solve() {
     return solver.solve();
 }
 
 board Solver::get_solution() const {
-    board b(rows, std::vector<int>(columns));
-    for (int row = 0; row < rows; ++row) {
-        for (int col = 0; col < columns; ++col) {
+    board b(board_size, std::vector<int>(board_size));
+    for (int row = 0; row < board_size; ++row) {
+        for (int col = 0; col < board_size; ++col) {
             int found = 0;
-            for (int val = 0; val < values; ++val) {
+            for (int val = 0; val < board_size; ++val) {
                 if (solver.modelValue(toVar(row, col, val)).isTrue()) {
                     ++found;
                     b[row][col] = val + 1;
@@ -182,4 +135,50 @@ board Solver::get_solution() const {
         }
     }
     return b;
+}
+
+bool Solver::apply_cage(Cage& cage)
+{
+    if (cage.op == Op::equal)
+        return apply_equal(cage);
+    cage.find_combinations();
+    return apply_combinations(cage);
+}
+
+bool Solver::apply_equal(const Cage& cage)
+{
+    assert(size(cage.coord) == 1);
+    auto var = toVar(cage.coord[0][0], cage.coord[0][1], cage.result - 1);
+    if (m_write_dimacs) {
+        log_var(Minisat::mkLit(var));
+        std::clog << "0\n";
+    }
+    return solver.addClause(Minisat::mkLit(var));
+}
+
+
+bool Solver::apply_combinations(Cage& cage)
+{
+    auto res = true;
+    Minisat::vec<Minisat::Lit> lit_patterns;
+    const auto n = size(cage.coord);
+    for (auto comb = begin(cage.combinations); comb != end(cage.combinations); comb += n) {
+        do {
+            auto lit_patt = Minisat::mkLit(solver.newVar());
+            for (int i = 0; i < n && res; ++i) {
+                auto [r, c] = cage.coord[i];
+                auto lit_square = Minisat::mkLit(toVar(r, c, comb[i]));
+                if (m_write_dimacs)
+                    log_clause(~lit_patt, lit_square);
+                res = solver.addClause(~lit_patt, lit_square);
+            }
+            lit_patterns.push(lit_patt);
+        } while (std::next_permutation(comb, comb + n));
+    }
+    if (res) {
+        if (m_write_dimacs)
+            log_clause(lit_patterns);
+        res = solver.addClause(lit_patterns);
+    }
+    return res;
 }

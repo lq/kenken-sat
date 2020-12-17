@@ -1,9 +1,10 @@
 #pragma once
 
+#include "cage.hpp"
 #include <minisat/core/Solver.h>
-
 #include <vector>
 
+extern int board_size;
 using board = std::vector<std::vector<int>>;
 
 class Solver {
@@ -13,8 +14,7 @@ private:
 
 public:
     Solver(bool write_dimacs = false);
-    // Returns true if applying the board does not lead to UNSAT result
-    bool apply_board(board const&);
+    bool apply_cage(Cage& cage);
     // Returns true if the sudoku has a solution
     bool solve();
     board get_solution() const;
@@ -24,4 +24,7 @@ private:
     void non_duplicated_values();
     void exactly_one_true(Minisat::vec<Minisat::Lit> const& literals);
     void init_variables();
+
+    bool apply_equal(const Cage&);
+    bool apply_combinations(Cage& cage);
 };

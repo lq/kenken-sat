@@ -1,73 +1,61 @@
+#include "cage.hpp"
 #include "solver.hpp"
 
+#include <chrono>
 #include <iostream>
 #include <string>
 #include <vector>
-#include <chrono>
 
 namespace {
 
 
 /**
  * Input patterns:
- * [1-9] means that square has a digit assigned,
- * . means empty square
+ * First line: The number of squares in each row and column
+ * Each following line specifies a cage with the format:
+ *  result operator {row column}..
+ *
  * Example:
  *
- *  123...456
- *  .........
- *  .........
- *  456...789
- *  .........
- *  .........
- *  789...123
- *  .........
- *  .........
+ *  3
+ *  2/ 00 10
+ *  2- 01 02
+ *  2* 11 21
+ *  5+ 12 22
+ *  3= 20
  *
  */
-board read_board(std::istream& in) {
-    board parsed(9, std::vector<int>(9));
-    int lines = 1;
-    std::string line;
-    while (std::getline(in, line) && lines <= 9) {
-        if (line.size() != 9) {
-            throw std::runtime_error("Line #" + std::to_string(lines) + " has invalid size.");
-        }
-        for (size_t ci = 0; ci < line.size(); ++ci) {
-            char c = line[ci];
-            if (c == '.') {
-                continue;
-            } else if (c >= '0' && c <= '9') {
-                parsed[lines - 1][ci] = c - '0';
-            } else {
-                throw std::runtime_error("Line #" + std::to_string(lines) + "contains invalid character: '" + c + "'");
-            }
-        }
-        ++lines;
-    }
-    if (lines != 10) {
-        throw std::runtime_error("The input is missing a line");
-    }
-
+board init_board(std::istream& in) {
+    in >> board_size;
+    board parsed(board_size, std::vector<int>(board_size));
     return parsed;
 }
 
-
+std::vector<Cage> read_cages(std::istream& in)
+{
+    std::vector<Cage> cages;
+    Cage cage;
+    while (in >> cage)
+        cages.emplace_back(cage);
+    return cages;
+}
 } // end anonymous namespace
-
 
 
 int main() {
     try {
-        auto board = read_board(std::cin);
-        auto t1 = std::chrono::high_resolution_clock::now();
-        Solver s;
-        if (!s.apply_board(board)) {
-            std::clog << "There is a contradiction in the parsed!\n";
-            return 2;
+        auto board = init_board(std::cin);
+        auto cages = read_cages(std::cin);
+        auto t1 = std::chrono::steady_clock::now();
+        Solver s{true};
+        for (auto& cage : cages) {
+            if (!s.apply_cage(cage)) {
+                std::clog << "There is a contradiction in the parsed!\n";
+                return 2;
+            }
         }
         if (s.solve()) {
-            std::chrono::duration<double, std::milli> time_taken = std::chrono::high_resolution_clock::now() - t1;
+            std::chrono::duration<double, std::milli> time_taken = std::chrono::steady_clock::now() - t1;
             std::clog << "Solution found in " << time_taken.count() << " ms\n";
 
             auto solution = s.get_solution();
